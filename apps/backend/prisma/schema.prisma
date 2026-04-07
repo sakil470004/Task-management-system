@@ -1,0 +1,102 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// User model for authentication and authorization
+// Supports two roles: ADMIN (full access) and USER (limited access)
+model User {
+  id        Int     @id @default(autoincrement())
+  email     String  @unique
+  password  String  // bcrypt hashed password
+  role      Role    @default(USER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  assignedTasks Task[] @relation("AssignedTasks")
+  createdTasks  Task[] @relation("CreatedBy")
+  auditLogs     AuditLog[] @relation("Actor")
+
+  @@map("users")
+}
+
+// Task model for task management
+// Status flow: PENDING -> PROCESSING -> DONE
+model Task {
+  id          Int     @id @default(autoincrement())
+  title       String
+  description String
+  status      TaskStatus @default(PENDING)
+  
+  // Foreign keys
+  assignedUserId Int?  // User assigned to this task (can be null before assignment)
+  createdById    Int   // Admin who created the task
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  assignedUser User? @relation("AssignedTasks", fields: [assignedUserId], references: [id], onDelete: SetNull)
+  createdBy    User @relation("CreatedBy", fields: [createdById], references: [id])
+  auditLogs    AuditLog[] @relation("TargetTask")
+
+  @@map("tasks")
+}
+
+// AuditLog model for tracking all important actions
+// Stores who did what, when, and what changed (before/after)
+model AuditLog {
+  id         Int       @id @default(autoincrement())
+  
+  // Actor information
+  actorId    Int
+  actor      User      @relation("Actor", fields: [actorId], references: [id])
+  
+  // Action information
+  actionType AuditAction
+  
+  // Target information
+  targetEntity String  // e.g., "TASK"
+  targetId     Int?    // ID of the task affected
+  targetTask   Task?   @relation("TargetTask", fields: [targetId], references: [id], onDelete: SetNull)
+  
+  // Data change tracking (JSON for flexibility)
+  // Examples:
+  // { "title": "Old Title" } for before data
+  // { "title": "New Title", "status": "PROCESSING" } for after data
+  beforeData   Json?   // State before change
+  afterData    Json?   // State after change
+  
+  timestamp    DateTime @default(now())
+
+  @@map("audit_logs")
+}
+
+// Enum for user roles
+enum Role {
+  ADMIN
+  USER
+}
+
+// Enum for task statuses
+enum TaskStatus {
+  PENDING
+  PROCESSING
+  DONE
+}
+
+// Enum for audit log action types
+enum AuditAction {
+  TASK_CREATED
+  TASK_UPDATED
+  TASK_DELETED
+  TASK_STATUS_CHANGED
+  TASK_ASSIGNED
+}
