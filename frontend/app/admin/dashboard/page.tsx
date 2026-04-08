@@ -12,7 +12,6 @@ import type { Task } from "@/lib/types";
 const ADMIN_NAVIGATION = [
   { href: "/admin/dashboard", label: "Dashboard" },
   { href: "/admin/audit-logs", label: "Audit Logs" },
-  { href: "/login", label: "Users" },
 ];
 
 /**

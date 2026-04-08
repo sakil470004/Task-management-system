@@ -8,7 +8,6 @@ import type { TaskStatus } from "@/lib/types";
 
 const USER_NAVIGATION = [
   { href: "/user/dashboard", label: "My Tasks" },
-  { href: "/login", label: "Profile" },
 ];
 
 /**
