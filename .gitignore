@@ -45,3 +45,10 @@ coverage/
 
 # Docker
 .dockerignore
+
+.docker/
+docker-build/
+
+# Docker containers and images
+.containers/
+.images/

@@ -1,0 +1,102 @@
+services:
+  # PostgreSQL Database Service
+  postgres:
+    image: postgres:15-alpine
+    container_name: taskmanager-postgres
+    
+    # Environment variables for PostgreSQL initialization
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin
+      POSTGRES_DB: taskmanager
+    
+    # Mount the initialization script to set up the database idempotently
+    volumes:
+      - ./init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+      - postgres_data:/var/lib/postgresql/data
+    
+    # Expose port 5432 (for development; remove for production)
+    ports:
+      - "5432:5432"
+    
+    # Health check: verify PostgreSQL is accepting connections
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d taskmanager"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    
+    # Join the custom network
+    networks:
+      - taskmanager-net
+
+  # NestJS Backend API Service
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: taskmanager-api
+    
+    # Environment variables for the backend application
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      DB_HOST: postgres          # Service name for Docker DNS resolution
+      DB_PORT: 5432
+      DB_USER: admin
+      DB_PASSWORD: admin
+      DB_NAME: taskmanager
+    
+    # Map port 5000 on host to port 5000 in container
+    ports:
+      - "5000:5000"
+    
+    # Depend on PostgreSQL with health check condition
+    depends_on:
+      postgres:
+        condition: service_healthy
+    
+    # Join the custom network
+    networks:
+      - taskmanager-net
+    
+    # Restart policy for production environment
+    restart: unless-stopped
+
+  # Next.js Frontend Service
+  web:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: taskmanager-web
+    
+    # Environment variables for the frontend application
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_URL: http://backend:5000  # Internal service name for client-side calls
+    
+    # Map port 3000 on host to port 3000 in container
+    ports:
+      - "3000:3000"
+    
+    # Depend on backend API service (ensures proper startup order)
+    depends_on:
+      - api
+    
+    # Join the custom network
+    networks:
+      - taskmanager-net
+    
+    # Restart policy for production environment
+    restart: unless-stopped
+
+# Define a custom bridge network for service-to-service communication
+networks:
+  taskmanager-net:
+    driver: bridge
+
+# Named volume for PostgreSQL data persistence
+volumes:
+  postgres_data:
+    driver: local
