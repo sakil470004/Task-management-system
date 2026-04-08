@@ -7,6 +7,7 @@ import {
   useEffect,
   useMemo,
   useState,
+  useSyncExternalStore,
 } from "react";
 import {
   createTaskApi,
@@ -21,6 +22,8 @@ import {
 import type { AuditLog, Task, TaskStatus, User } from "@/lib/types";
 
 const STORAGE_KEY = "task-mgmt-auth";
+
+const authListeners = new Set<() => void>();
 
 interface LoginResult {
   success: boolean;
@@ -52,40 +55,113 @@ interface PersistedAuthState {
   currentUser: User;
 }
 
+/**
+ * Reads raw persisted auth payload for stable external-store snapshots.
+ */
+function readPersistedAuthRaw(): string | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  return window.localStorage.getItem(STORAGE_KEY);
+}
+
+/**
+ * Converts raw storage payload into typed auth state.
+ */
+function parsePersistedAuth(raw: string | null): PersistedAuthState | null {
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(raw) as PersistedAuthState;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Persists auth and notifies subscribers to update in the same tick.
+ */
+function writePersistedAuth(state: PersistedAuthState): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  authListeners.forEach((listener) => listener());
+}
+
+/**
+ * Clears persisted auth and notifies subscribers to update immediately.
+ */
+function clearPersistedAuth(): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.removeItem(STORAGE_KEY);
+  authListeners.forEach((listener) => listener());
+}
+
+/**
+ * Subscribes to auth changes across this tab and storage changes from other tabs.
+ */
+function subscribeAuth(listener: () => void): () => void {
+  authListeners.add(listener);
+
+  const handleStorageChange = (event: StorageEvent): void => {
+    if (event.key === STORAGE_KEY) {
+      listener();
+    }
+  };
+
+  if (typeof window !== "undefined") {
+    window.addEventListener("storage", handleStorageChange);
+  }
+
+  return () => {
+    authListeners.delete(listener);
+    if (typeof window !== "undefined") {
+      window.removeEventListener("storage", handleStorageChange);
+    }
+  };
+}
+
+/**
+ * Indicates hydration completion without state-in-effect patterns.
+ */
+function useHydrated(): boolean {
+  return useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
+}
+
 const AppStateContext = createContext<AppStateContextValue | null>(null);
 
 /**
  * Provides global app state backed by real backend APIs.
  */
 export function AppStateProvider({ children }: { children: React.ReactNode }) {
-  const [authReady] = useState(true);
-  const [accessToken, setAccessToken] = useState<string | null>(null);
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const isHydrated = useHydrated();
+  const persistedAuthRaw = useSyncExternalStore(
+    subscribeAuth,
+    readPersistedAuthRaw,
+    () => null,
+  );
+  const persistedAuth = useMemo(
+    () => parsePersistedAuth(persistedAuthRaw),
+    [persistedAuthRaw],
+  );
+  const authReady = isHydrated;
+  const accessToken = persistedAuth?.accessToken ?? null;
+  const currentUser = persistedAuth?.currentUser ?? null;
   const [users, setUsers] = useState<User[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
-
-  useEffect(() => {
-    if (!authReady) {
-      return;
-    }
-
-    if (typeof window === "undefined") {
-      return;
-    }
-
-    if (!accessToken || !currentUser) {
-      window.localStorage.removeItem(STORAGE_KEY);
-      return;
-    }
-
-    const state: PersistedAuthState = {
-      accessToken,
-      currentUser,
-    };
-
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  }, [authReady, accessToken, currentUser]);
 
   /**
    * Fetches task list for the currently authenticated principal.
@@ -138,8 +214,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           refreshAuditLogs(accessToken, currentUser.role),
         ]);
       } catch {
-        setAccessToken(null);
-        setCurrentUser(null);
+        clearPersistedAuth();
         setTasks([]);
         setUsers([]);
         setAuditLogs([]);
@@ -153,8 +228,10 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const login = useCallback(async (email: string, password: string): Promise<LoginResult> => {
     try {
       const response = await loginApi(email, password);
-      setAccessToken(response.accessToken);
-      setCurrentUser(response.user);
+      writePersistedAuth({
+        accessToken: response.accessToken,
+        currentUser: response.user,
+      });
       return { success: true };
     } catch {
       return {
@@ -168,8 +245,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
    * Clears in-memory and persisted auth state for a clean logout flow.
    */
   const logout = useCallback(() => {
-    setAccessToken(null);
-    setCurrentUser(null);
+    clearPersistedAuth();
     setTasks([]);
     setUsers([]);
     setAuditLogs([]);
