@@ -2,21 +2,32 @@
 -- This script is executed once on first container startup
 -- It is idempotent, meaning it can be run multiple times without errors
 
--- Note: The admin user and taskmanager database are already created by Docker environment variables
+-- Note: The postgres user and taskmanager database are created by Docker environment variables
 -- This script ensures the setup is complete and can add additional initialization as needed
 
+-- Switch to the maintenance database so we can create taskmanager when needed.
+\connect postgres
+
+-- Create the taskmanager database only when it does not already exist.
+SELECT 'CREATE DATABASE taskmanager'
+WHERE NOT EXISTS (
+  SELECT 1
+  FROM pg_database
+  WHERE datname = 'taskmanager'
+)\gexec
+
 -- Verify the database exists and is accessible
--- Grant all privileges on taskmanager database to admin user (idempotent)
-GRANT ALL PRIVILEGES ON DATABASE taskmanager TO admin;
+-- Grant all privileges on taskmanager database to postgres user (idempotent)
+GRANT ALL PRIVILEGES ON DATABASE taskmanager TO postgres;
 
 -- Connect to taskmanager database for schema setup
-\c taskmanager;
+\c taskmanager
 
--- Grant all privileges on public schema to admin user
-GRANT ALL PRIVILEGES ON SCHEMA public TO admin;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL PRIVILEGES ON TABLES TO admin;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL PRIVILEGES ON SEQUENCES TO admin;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL PRIVILEGES ON FUNCTIONS TO admin;
+-- Grant all privileges on public schema to postgres user
+GRANT ALL PRIVILEGES ON SCHEMA public TO postgres;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL PRIVILEGES ON TABLES TO postgres;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL PRIVILEGES ON SEQUENCES TO postgres;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL PRIVILEGES ON FUNCTIONS TO postgres;
 
 -- Core schema (idempotent) for auth, task workflow, and audit history
 CREATE TABLE IF NOT EXISTS users (

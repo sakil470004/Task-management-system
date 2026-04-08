@@ -6,8 +6,8 @@ services:
     
     # Environment variables for PostgreSQL initialization
     environment:
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: admin
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
       POSTGRES_DB: taskmanager
     
     # Mount the initialization script to set up the database idempotently
@@ -21,7 +21,7 @@ services:
     
     # Health check: verify PostgreSQL is accepting connections
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U admin -d taskmanager"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d taskmanager"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -44,8 +44,8 @@ services:
       PORT: 5000
       DB_HOST: postgres          # Service name for Docker DNS resolution
       DB_PORT: 5432
-      DB_USER: admin
-      DB_PASSWORD: admin
+      DB_USER: postgres
+      DB_PASSWORD: postgres
       DB_NAME: taskmanager
       JWT_SECRET: super-secret-change-me
       JWT_EXPIRES_IN: 1d
