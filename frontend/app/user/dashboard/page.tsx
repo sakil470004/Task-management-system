@@ -16,9 +16,13 @@ const USER_NAVIGATION = [
  */
 export default function UserDashboardPage() {
   const router = useRouter();
-  const { currentUser, tasks, updateTaskStatus } = useAppState();
+  const { authReady, currentUser, tasks, updateTaskStatus } = useAppState();
 
   useEffect(() => {
+    if (!authReady) {
+      return;
+    }
+
     if (!currentUser) {
       router.replace("/login");
       return;
@@ -27,9 +31,9 @@ export default function UserDashboardPage() {
     if (currentUser.role !== "user") {
       router.replace("/admin/dashboard");
     }
-  }, [currentUser, router]);
+  }, [authReady, currentUser, router]);
 
-  if (!currentUser || currentUser.role !== "user") {
+  if (!authReady || !currentUser || currentUser.role !== "user") {
     return null;
   }
 

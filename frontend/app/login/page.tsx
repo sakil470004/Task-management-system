@@ -9,13 +9,17 @@ import { useAppState } from "@/hooks/use-app-state";
  */
 export default function LoginPage() {
   const router = useRouter();
-  const { currentUser, login } = useAppState();
+  const { authReady, currentUser, login } = useAppState();
 
   const [email, setEmail] = useState("admin@example.com");
   const [password, setPassword] = useState("password123");
   const [errorMessage, setErrorMessage] = useState<string>("");
 
   useEffect(() => {
+    if (!authReady) {
+      return;
+    }
+
     if (!currentUser) {
       return;
     }
@@ -26,7 +30,11 @@ export default function LoginPage() {
     }
 
     router.replace("/user/dashboard");
-  }, [currentUser, router]);
+  }, [authReady, currentUser, router]);
+
+  if (!authReady) {
+    return null;
+  }
 
   /**
    * Authenticates with local dummy identities and redirects by role.

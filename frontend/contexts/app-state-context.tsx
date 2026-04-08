@@ -34,6 +34,7 @@ interface UpdateTaskPayload {
 }
 
 interface AppStateContextValue {
+  authReady: boolean;
   users: User[];
   tasks: Task[];
   auditLogs: AuditLog[];
@@ -54,41 +55,21 @@ interface PersistedAuthState {
 const AppStateContext = createContext<AppStateContextValue | null>(null);
 
 /**
- * Safely restores auth state so browser refresh does not force re-login.
- */
-function loadPersistedAuthState(): PersistedAuthState | null {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  const raw = window.localStorage.getItem(STORAGE_KEY);
-  if (!raw) {
-    return null;
-  }
-
-  try {
-    return JSON.parse(raw) as PersistedAuthState;
-  } catch {
-    return null;
-  }
-}
-
-/**
  * Provides global app state backed by real backend APIs.
  */
 export function AppStateProvider({ children }: { children: React.ReactNode }) {
-  const [bootstrapAuth] = useState<PersistedAuthState | null>(() => loadPersistedAuthState());
-  const [accessToken, setAccessToken] = useState<string | null>(
-    bootstrapAuth?.accessToken ?? null,
-  );
-  const [currentUser, setCurrentUser] = useState<User | null>(
-    bootstrapAuth?.currentUser ?? null,
-  );
+  const [authReady] = useState(true);
+  const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
 
   useEffect(() => {
+    if (!authReady) {
+      return;
+    }
+
     if (typeof window === "undefined") {
       return;
     }
@@ -104,7 +85,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     };
 
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  }, [accessToken, currentUser]);
+  }, [authReady, accessToken, currentUser]);
 
   /**
    * Fetches task list for the currently authenticated principal.
@@ -141,6 +122,10 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
+    if (!authReady) {
+      return;
+    }
+
     if (!accessToken || !currentUser) {
       return;
     }
@@ -160,7 +145,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         setAuditLogs([]);
       }
     })();
-  }, [accessToken, currentUser, refreshTasks, refreshUsers, refreshAuditLogs]);
+  }, [authReady, accessToken, currentUser, refreshTasks, refreshUsers, refreshAuditLogs]);
 
   /**
    * Authenticates against backend and bootstraps authenticated app data.
@@ -256,6 +241,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
 
   const value = useMemo<AppStateContextValue>(
     () => ({
+      authReady,
       users,
       tasks,
       auditLogs,
@@ -267,7 +253,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       editTask,
       deleteTask,
     }),
-    [users, tasks, auditLogs, currentUser, login, logout, updateTaskStatus, createTask, editTask, deleteTask],
+    [authReady, users, tasks, auditLogs, currentUser, login, logout, updateTaskStatus, createTask, editTask, deleteTask],
   );
 
   return <AppStateContext.Provider value={value}>{children}</AppStateContext.Provider>;

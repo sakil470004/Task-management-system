@@ -16,9 +16,13 @@ const ADMIN_NAVIGATION = [
  */
 export default function AdminAuditLogsPage() {
   const router = useRouter();
-  const { currentUser, auditLogs } = useAppState();
+  const { authReady, currentUser, auditLogs } = useAppState();
 
   useEffect(() => {
+    if (!authReady) {
+      return;
+    }
+
     if (!currentUser) {
       router.replace("/login");
       return;
@@ -27,9 +31,9 @@ export default function AdminAuditLogsPage() {
     if (currentUser.role !== "admin") {
       router.replace("/user/dashboard");
     }
-  }, [currentUser, router]);
+  }, [authReady, currentUser, router]);
 
-  if (!currentUser || currentUser.role !== "admin") {
+  if (!authReady || !currentUser || currentUser.role !== "admin") {
     return null;
   }
 

@@ -20,13 +20,17 @@ const ADMIN_NAVIGATION = [
  */
 export default function AdminDashboardPage() {
   const router = useRouter();
-  const { currentUser, tasks, users, createTask, editTask, deleteTask } = useAppState();
+  const { authReady, currentUser, tasks, users, createTask, editTask, deleteTask } = useAppState();
 
   const [modalMode, setModalMode] = useState<"create" | "edit">("create");
   const [editingTaskId, setEditingTaskId] = useState<number | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   useEffect(() => {
+    if (!authReady) {
+      return;
+    }
+
     if (!currentUser) {
       router.replace("/login");
       return;
@@ -35,7 +39,7 @@ export default function AdminDashboardPage() {
     if (currentUser.role !== "admin") {
       router.replace("/user/dashboard");
     }
-  }, [currentUser, router]);
+  }, [authReady, currentUser, router]);
 
   const usersById = useMemo(() => {
     const entries = users.map((user) => [user.id, user.name] as const);
@@ -50,7 +54,7 @@ export default function AdminDashboardPage() {
     return tasks.find((task) => task.id === editingTaskId);
   }, [tasks, editingTaskId]);
 
-  if (!currentUser || currentUser.role !== "admin") {
+  if (!authReady || !currentUser || currentUser.role !== "admin") {
     return null;
   }
 

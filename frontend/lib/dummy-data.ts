@@ -8,21 +8,18 @@ export const DUMMY_USERS: User[] = [
     id: 1,
     name: "admin",
     email: "admin@example.com",
-    password: "password123",
     role: "admin",
   },
   {
     id: 2,
     name: "jane",
     email: "jane@example.com",
-    password: "password123",
     role: "user",
   },
   {
     id: 3,
     name: "john",
     email: "john@example.com",
-    password: "password123",
     role: "user",
   },
 ];
