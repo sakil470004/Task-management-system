@@ -97,7 +97,16 @@ export class TasksService {
       throw new NotFoundException('Task not found.');
     }
 
-    if (dto.assigneeId) {
+    const previousTitle = existing.title;
+    const previousAssigneeName = existing.assignee?.name ?? 'Unknown';
+    let nextAssigneeName = previousAssigneeName;
+
+    const patch: Partial<TaskEntity> = {};
+
+    if (
+      dto.assigneeId !== undefined &&
+      dto.assigneeId !== existing.assigneeId
+    ) {
       const assignee = await this.usersRepository.findOne({
         where: { id: dto.assigneeId },
       });
@@ -106,23 +115,45 @@ export class TasksService {
         throw new NotFoundException('Assignee user does not exist.');
       }
 
-      existing.assigneeId = dto.assigneeId;
+      patch.assigneeId = dto.assigneeId;
+      nextAssigneeName = assignee.name;
     }
 
-    if (dto.title) {
-      existing.title = dto.title;
+    if (dto.title !== undefined) {
+      patch.title = dto.title;
     }
 
-    if (dto.status) {
-      existing.status = dto.status;
+    if (dto.status !== undefined) {
+      patch.status = dto.status;
     }
 
-    const updated = await this.tasksRepository.save(existing);
+    if (Object.keys(patch).length === 0) {
+      return existing;
+    }
+
+    await this.tasksRepository.update({ id: taskId }, patch);
+
+    const updated = await this.tasksRepository.findOne({
+      where: {
+        id: taskId,
+      },
+      relations: {
+        assignee: true,
+      },
+    });
+
+    if (!updated) {
+      throw new NotFoundException('Task not found after update.');
+    }
+
+    if (updated.assignee?.name) {
+      nextAssigneeName = updated.assignee.name;
+    }
 
     await this.auditService.log(
       actor.id,
       'Task Edited',
-      `Task Edited: "${existing.title}"`,
+      `Task Edited: "${previousTitle}" -> "${updated.title}", assignee "${previousAssigneeName}" -> "${nextAssigneeName}"`,
     );
 
     return updated;

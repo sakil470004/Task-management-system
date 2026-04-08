@@ -6,6 +6,7 @@ import {
   MaxLength,
   MinLength,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import {
   TASK_STATUS_VALUES,
   type TaskStatus,
@@ -22,6 +23,7 @@ export class UpdateTaskDto {
   title?: string;
 
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
   assigneeId?: number;
 

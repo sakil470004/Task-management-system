@@ -1,4 +1,5 @@
 import { IsIn, IsInt, IsString, MaxLength, MinLength } from 'class-validator';
+import { Type } from 'class-transformer';
 import {
   TASK_STATUS_VALUES,
   type TaskStatus,
@@ -13,6 +14,7 @@ export class CreateTaskDto {
   @MaxLength(255)
   title: string;
 
+  @Type(() => Number)
   @IsInt()
   assigneeId: number;
 

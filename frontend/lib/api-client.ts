@@ -21,6 +21,8 @@ interface RequestOptions extends RequestInit {
  * Reads HTTP responses safely and throws a useful error for UI feedback.
  */
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  const method = (options.method ?? "GET").toUpperCase();
+
   const headers = new Headers(options.headers ?? {});
   headers.set("Content-Type", "application/json");
 
@@ -30,6 +32,8 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...options,
+    // Prevent stale browser cache from masking recent task/assignee updates.
+    cache: method === "GET" ? "no-store" : options.cache,
     headers,
   });
 
