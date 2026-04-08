@@ -1,7 +1,7 @@
 # Makefile for Task Management System - Docker Compose CLI
 # Provides convenient commands for managing services with docker-compose
 
-.PHONY: help up down rebuild logs logs-api logs-web logs-postgres clean ps shell-api shell-web shell-postgres
+.PHONY: help up down rebuild logs logs-api logs-web logs-postgres clean ps shell-api shell-web shell-postgres dev-up dev-down dev-logs dev-logs-api dev-logs-web dev-ps dev-clean dev-db-start dev-db-stop dev-local-start dev-db-logs
 
 # Default target - show help
 help:
@@ -28,9 +28,28 @@ help:
 	@echo "  shell-web       Open interactive shell in frontend container"
 	@echo "  shell-postgres  Connect to PostgreSQL database as admin user"
 	@echo "  ─────────────────────────────────────────────────────"
-	@echo "Examples:"
-	@echo "  make up                 # Start all services"
-	@echo "  make logs-api           # View backend logs"
+	@echo "  🔥 DEVELOPMENT COMMANDS (with hot reload):"
+	@echo "  ─────────────────────────────────────────────────────"
+	@echo "  dev-up          Start all services in development mode (hot reload enabled)"
+	@echo "  dev-down        Stop all development services"
+	@echo "  dev-logs        View logs from all dev services (streaming)"
+	@echo "  dev-logs-api    View logs from backend API service in dev mode"
+	@echo "  dev-logs-web    View logs from frontend web service in dev mode"
+	@echo "  dev-ps          Show running dev containers and their status"
+	@echo "  dev-clean       Remove dev containers, volumes, and orphaned services"
+	@echo ""
+	@echo "  💻 LOCAL DEVELOPMENT (Hot Reload on File Changes - RECOMMENDED):"
+	@echo "  ─────────────────────────────────────────────────────"
+	@echo "  dev-db-start    Start ONLY PostgreSQL in Docker (no image rebuild)"
+	@echo "  dev-db-stop     Stop PostgreSQL container"
+	@echo "  dev-db-logs     View PostgreSQL logs"
+	@echo "  dev-local-start Start backend & frontend on your machine (auto hot reload)"
+	@echo "  ─────────────────────────────────────────────────────"
+	@echo "  🚀 EXAMPLES:"
+	@echo "  ─────────────────────────────────────────────────────"
+	@echo "  make up                 # Start all services (production)"
+	@echo "  make dev-local-start    # Best for development: DB in Docker, app on host (hot reload)"
+	@echo "  make dev-db-start       # Start only PostgreSQL"
 	@echo "  make rebuild            # Restart everything with fresh build"
 	@echo ""
 
@@ -111,3 +130,95 @@ shell-web:
 shell-postgres:
 	@echo "🗄️  Connecting to PostgreSQL database..."
 	docker-compose exec postgres psql -U admin -d taskmanager
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 🔥 DEVELOPMENT COMMANDS (Hot Reload Support)
+# ═══════════════════════════════════════════════════════════════════════════
+
+# Start all services in development mode with hot reload (Docker-based)
+dev-up:
+	@echo "🔥 Starting all services in DEVELOPMENT mode (hot reload enabled)..."
+	docker-compose -f docker-compose.dev.yml up -d --build
+	@echo "✅ Development services are starting..."
+	@echo "   📱 Frontend:  http://localhost:3000 (hot reload on file changes)"
+	@echo "   🔌 Backend:   http://localhost:5000 (hot reload on file changes)"
+	@echo "   🗄️  Database:  localhost:5432 (user: admin, password: admin)"
+	@echo ""
+	@echo "Files in 'backend/src' and 'frontend/app' will auto-reload on changes"
+	@echo "Run 'make dev-logs' to view streaming logs"
+
+# Stop development services gracefully  
+dev-down:
+	@echo "🛑 Stopping development services..."
+	docker-compose -f docker-compose.dev.yml down
+	@echo "✅ Development services stopped"
+
+# View streaming logs from all development services
+dev-logs:
+	@echo "📋 Streaming logs from all development services (Ctrl+C to exit)..."
+	docker-compose -f docker-compose.dev.yml logs -f
+
+# View streaming logs from backend API service in dev mode
+dev-logs-api:
+	@echo "📋 Streaming logs from backend API service (Ctrl+C to exit)..."
+	docker-compose -f docker-compose.dev.yml logs -f api
+
+# View streaming logs from frontend service in dev mode
+dev-logs-web:
+	@echo "📋 Streaming logs from frontend web service (Ctrl+C to exit)..."
+	docker-compose -f docker-compose.dev.yml logs -f web
+
+# Show status of all development containers
+dev-ps:
+	@echo "📊 Development Container Status:"
+	@docker-compose -f docker-compose.dev.yml ps
+
+# Remove development containers, networks, and volumes
+dev-clean:
+	@echo "🧹 Cleaning up development containers and volumes..."
+	docker-compose -f docker-compose.dev.yml down -v
+	@echo "✅ Development cleanup complete (all dev volumes removed)"
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 💻 LOCAL DEVELOPMENT (Recommended for hot reload)
+# PostgreSQL in Docker + Frontend/Backend on your machine
+# ═══════════════════════════════════════════════════════════════════════════
+
+# Start ONLY PostgreSQL in Docker (no image rebuild - fast!)
+dev-db-start:
+	@echo "🐘 Starting PostgreSQL in Docker (local development)..."
+	docker-compose -f docker-compose.local.yml up -d
+	@echo "✅ PostgreSQL is ready!"
+	@echo "   🗄️  Database:  localhost:5432"
+	@echo "   👤 User:      admin"
+	@echo "   🔑 Password:  admin"
+	@echo "   📊 Database:  taskmanager"
+	@echo ""
+	@echo "Now run: make dev-local-start"
+
+# Stop PostgreSQL container
+dev-db-stop:
+	@echo "🛑 Stopping PostgreSQL..."
+	docker-compose -f docker-compose.local.yml down
+	@echo "✅ PostgreSQL stopped"
+
+# View PostgreSQL logs
+dev-db-logs:
+	@echo "📋 PostgreSQL logs (Ctrl+C to exit)..."
+	docker-compose -f docker-compose.local.yml logs -f postgres
+
+# Start frontend and backend on your machine with hot reload
+dev-local-start:
+	@echo "🔥 Starting backend and frontend with HOT RELOAD..."
+	@echo ""
+	@echo "⚠️  PREREQUISITES:"
+	@echo "   • PostgreSQL running: run 'make dev-db-start' in another terminal"
+	@echo "   • Node.js installed locally"
+	@echo "   • Dependencies installed: 'pnpm install' in both backend/ and frontend/"
+	@echo ""
+	@echo "Starting services..."
+	@echo ""
+	@cd backend && npm run start:dev &
+	@cd frontend && npm run dev &
+	@wait
+
