@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { useAppState } from "@/hooks/use-app-state";
 import type { TaskStatus } from "@/lib/types";
+import toast from "react-hot-toast";
 
 const USER_NAVIGATION = [
   { href: "/user/dashboard", label: "My Tasks" },
@@ -42,7 +43,12 @@ export default function UserDashboardPage() {
    * Applies immediate local state updates to mimic optimistic API behavior.
    */
   async function handleStatusChange(taskId: number, nextStatus: string): Promise<void> {
-    await updateTaskStatus(taskId, nextStatus as TaskStatus);
+    try {
+      await updateTaskStatus(taskId, nextStatus as TaskStatus);
+      toast.success("Task status updated.");
+    } catch {
+      toast.error("Failed to update task status.");
+    }
   }
 
   return (

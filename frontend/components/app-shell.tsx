@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import { useAppState } from "@/hooks/use-app-state";
+import toast from "react-hot-toast";
 
 interface NavigationItem {
   href: string;
@@ -35,6 +36,7 @@ export function AppShell({
    */
   function handleLogout(): void {
     logout();
+    toast.success("Logged out.");
     router.push("/login");
   }
 

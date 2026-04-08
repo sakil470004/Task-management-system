@@ -8,6 +8,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { TaskFormModal } from "@/components/task-form-modal";
 import { useAppState } from "@/hooks/use-app-state";
 import type { Task } from "@/lib/types";
+import toast from "react-hot-toast";
 
 const ADMIN_NAVIGATION = [
   { href: "/admin/dashboard", label: "Dashboard" },
@@ -83,13 +84,31 @@ export default function AdminDashboardPage() {
     assigneeId: number;
     status: "Todo" | "In Progress" | "Done";
   }): Promise<void> {
-    if (modalMode === "create") {
-      await createTask(payload);
-    } else if (editingTaskId) {
-      await editTask(editingTaskId, payload);
-    }
+    try {
+      if (modalMode === "create") {
+        await createTask(payload);
+        toast.success("Task created.");
+      } else if (editingTaskId) {
+        await editTask(editingTaskId, payload);
+        toast.success("Task updated.");
+      }
 
-    setIsModalOpen(false);
+      setIsModalOpen(false);
+    } catch {
+      toast.error("Failed to save task changes.");
+    }
+  }
+
+  /**
+   * Deletes a task and reports success/failure to the user.
+   */
+  async function handleDelete(taskId: number): Promise<void> {
+    try {
+      await deleteTask(taskId);
+      toast.success("Task deleted.");
+    } catch {
+      toast.error("Failed to delete task.");
+    }
   }
 
   return (
@@ -138,7 +157,7 @@ export default function AdminDashboardPage() {
                           type="button"
                           className="button danger"
                           onClick={() => {
-                            void deleteTask(task.id);
+                            void handleDelete(task.id);
                           }}
                         >
                           Delete

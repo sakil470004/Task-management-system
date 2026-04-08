@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAppState } from "@/hooks/use-app-state";
+import toast from "react-hot-toast";
 
 /**
  * Presents a centered login card and routes to role-specific dashboards.
@@ -45,10 +46,12 @@ export default function LoginPage() {
     const result = await login(email, password);
     if (!result.success) {
       setErrorMessage(result.message ?? "Unable to login.");
+      toast.error(result.message ?? "Unable to login.");
       return;
     }
 
     setErrorMessage("");
+    toast.success("Login successful.");
   }
 
   return (
