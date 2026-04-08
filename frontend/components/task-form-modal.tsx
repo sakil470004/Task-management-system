@@ -82,6 +82,7 @@ export function TaskFormModal({
             Assignee
             <select
               value={assigneeId}
+              disabled={mode === "edit"}
               onChange={(event) => setAssigneeId(Number(event.target.value))}
             >
               {users.map((user) => (
@@ -90,6 +91,9 @@ export function TaskFormModal({
                 </option>
               ))}
             </select>
+            {mode === "edit" ? (
+              <small className="field-hint">Assignee is locked for existing tasks.</small>
+            ) : null}
           </label>
 
           <label>

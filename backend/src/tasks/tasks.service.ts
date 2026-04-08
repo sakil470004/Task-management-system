@@ -39,7 +39,8 @@ export class TasksService {
         assignee: true,
       },
       order: {
-        id: 'ASC',
+        updatedAt: 'DESC',
+        id: 'DESC',
       },
     });
 
