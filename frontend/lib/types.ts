@@ -15,7 +15,6 @@ export interface User {
   id: number;
   name: string;
   email: string;
-  password: string;
   role: UserRole;
 }
 
@@ -26,6 +25,7 @@ export interface Task {
   id: number;
   title: string;
   assigneeId: number;
+  assigneeName?: string;
   status: TaskStatus;
   createdAt: string;
   updatedAt: string;

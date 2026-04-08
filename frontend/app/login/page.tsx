@@ -31,10 +31,10 @@ export default function LoginPage() {
   /**
    * Authenticates with local dummy identities and redirects by role.
    */
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>): void {
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
 
-    const result = login(email, password);
+    const result = await login(email, password);
     if (!result.success) {
       setErrorMessage(result.message ?? "Unable to login.");
       return;

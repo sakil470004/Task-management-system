@@ -1,8 +1,15 @@
 import { Injectable } from '@nestjs/common';
 
+/**
+ * Keeps root endpoint output stable for health and observability checks.
+ */
 @Injectable()
 export class AppService {
-  getHello(): string {
-    return ' hello World';
+  getHealth() {
+    return {
+      status: 'ok',
+      service: 'taskmanager-api',
+      timestamp: new Date().toISOString(),
+    };
   }
 }

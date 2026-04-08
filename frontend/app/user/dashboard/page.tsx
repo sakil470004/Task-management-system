@@ -38,8 +38,8 @@ export default function UserDashboardPage() {
   /**
    * Applies immediate local state updates to mimic optimistic API behavior.
    */
-  function handleStatusChange(taskId: number, nextStatus: string): void {
-    updateTaskStatus(taskId, nextStatus as TaskStatus);
+  async function handleStatusChange(taskId: number, nextStatus: string): Promise<void> {
+    await updateTaskStatus(taskId, nextStatus as TaskStatus);
   }
 
   return (
@@ -66,9 +66,9 @@ export default function UserDashboardPage() {
                   <td>
                     <select
                       value={task.status}
-                      onChange={(event) =>
-                        handleStatusChange(task.id, event.target.value)
-                      }
+                      onChange={(event) => {
+                        void handleStatusChange(task.id, event.target.value);
+                      }}
                       className="status-select"
                     >
                       <option value="Todo">Todo</option>

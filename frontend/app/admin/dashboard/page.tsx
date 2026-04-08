@@ -75,15 +75,15 @@ export default function AdminDashboardPage() {
   /**
    * Routes submit payload to the proper action based on current modal mode.
    */
-  function handleModalSubmit(payload: {
+  async function handleModalSubmit(payload: {
     title: string;
     assigneeId: number;
     status: "Todo" | "In Progress" | "Done";
-  }): void {
+  }): Promise<void> {
     if (modalMode === "create") {
-      createTask(payload);
+      await createTask(payload);
     } else if (editingTaskId) {
-      editTask(editingTaskId, payload);
+      await editTask(editingTaskId, payload);
     }
 
     setIsModalOpen(false);
@@ -134,7 +134,9 @@ export default function AdminDashboardPage() {
                         <button
                           type="button"
                           className="button danger"
-                          onClick={() => deleteTask(task.id)}
+                          onClick={() => {
+                            void deleteTask(task.id);
+                          }}
                         >
                           Delete
                         </button>
@@ -155,7 +157,9 @@ export default function AdminDashboardPage() {
         users={users}
         initialTask={editingTask}
         onClose={() => setIsModalOpen(false)}
-        onSubmit={handleModalSubmit}
+        onSubmit={(payload) => {
+          void handleModalSubmit(payload);
+        }}
       />
     </>
   );

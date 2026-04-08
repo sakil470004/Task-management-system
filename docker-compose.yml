@@ -47,6 +47,8 @@ services:
       DB_USER: admin
       DB_PASSWORD: admin
       DB_NAME: taskmanager
+      JWT_SECRET: super-secret-change-me
+      JWT_EXPIRES_IN: 1d
     
     # Map port 5000 on host to port 5000 in container
     ports:
@@ -74,7 +76,7 @@ services:
     # Environment variables for the frontend application
     environment:
       NODE_ENV: production
-      NEXT_PUBLIC_API_URL: http://backend:5000  # Internal service name for client-side calls
+      NEXT_PUBLIC_API_URL: http://localhost:5000  # Browser-reachable API URL for frontend runtime calls
     
     # Map port 3000 on host to port 3000 in container
     ports:

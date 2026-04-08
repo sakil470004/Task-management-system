@@ -8,10 +8,19 @@ import {
   useMemo,
   useState,
 } from "react";
-import { DUMMY_AUDIT_LOGS, DUMMY_TASKS, DUMMY_USERS } from "@/lib/dummy-data";
+import {
+  createTaskApi,
+  deleteTaskApi,
+  editTaskApi,
+  getAuditLogsApi,
+  getTasksApi,
+  getUsersApi,
+  loginApi,
+  updateTaskStatusApi,
+} from "@/lib/api-client";
 import type { AuditLog, Task, TaskStatus, User } from "@/lib/types";
 
-const STORAGE_KEY = "task-mgmt-frontend-state";
+const STORAGE_KEY = "task-mgmt-auth";
 
 interface LoginResult {
   success: boolean;
@@ -29,41 +38,25 @@ interface AppStateContextValue {
   tasks: Task[];
   auditLogs: AuditLog[];
   currentUser: User | null;
-  login: (email: string, password: string) => LoginResult;
+  login: (email: string, password: string) => Promise<LoginResult>;
   logout: () => void;
-  updateTaskStatus: (taskId: number, nextStatus: TaskStatus) => void;
-  createTask: (payload: UpdateTaskPayload) => void;
-  editTask: (taskId: number, payload: UpdateTaskPayload) => void;
-  deleteTask: (taskId: number) => void;
+  updateTaskStatus: (taskId: number, nextStatus: TaskStatus) => Promise<void>;
+  createTask: (payload: UpdateTaskPayload) => Promise<void>;
+  editTask: (taskId: number, payload: UpdateTaskPayload) => Promise<void>;
+  deleteTask: (taskId: number) => Promise<void>;
 }
 
-interface PersistedState {
-  currentUser: User | null;
-  tasks: Task[];
-  auditLogs: AuditLog[];
+interface PersistedAuthState {
+  accessToken: string;
+  currentUser: User;
 }
 
 const AppStateContext = createContext<AppStateContextValue | null>(null);
 
 /**
- * Formats an ISO date in a compact format that resembles the screenshot tables.
+ * Safely restores auth state so browser refresh does not force re-login.
  */
-function toTableDateTime(isoValue: string): string {
-  const parsed = new Date(isoValue);
-  return parsed.toLocaleString("en-US", {
-    month: "2-digit",
-    day: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: true,
-  });
-}
-
-/**
- * Safely loads persisted mock state to preserve in-progress UI demos on refresh.
- */
-function loadPersistedState(): PersistedState | null {
+function loadPersistedAuthState(): PersistedAuthState | null {
   if (typeof window === "undefined") {
     return null;
   }
@@ -74,234 +67,198 @@ function loadPersistedState(): PersistedState | null {
   }
 
   try {
-    const parsed = JSON.parse(raw) as PersistedState;
-    return parsed;
+    return JSON.parse(raw) as PersistedAuthState;
   } catch {
     return null;
   }
 }
 
 /**
- * Provides one global in-memory application store for mock frontend flows.
+ * Provides global app state backed by real backend APIs.
  */
 export function AppStateProvider({ children }: { children: React.ReactNode }) {
-  const [bootstrapState] = useState<PersistedState | null>(() => loadPersistedState());
+  const [bootstrapAuth] = useState<PersistedAuthState | null>(() => loadPersistedAuthState());
+  const [accessToken, setAccessToken] = useState<string | null>(
+    bootstrapAuth?.accessToken ?? null,
+  );
   const [currentUser, setCurrentUser] = useState<User | null>(
-    bootstrapState?.currentUser ?? null,
+    bootstrapAuth?.currentUser ?? null,
   );
-  const [tasks, setTasks] = useState<Task[]>(bootstrapState?.tasks ?? DUMMY_TASKS);
-  const [auditLogs, setAuditLogs] = useState<AuditLog[]>(
-    bootstrapState?.auditLogs ?? DUMMY_AUDIT_LOGS,
-  );
+  const [users, setUsers] = useState<User[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
       return;
     }
 
-    const stateToPersist: PersistedState = {
+    if (!accessToken || !currentUser) {
+      window.localStorage.removeItem(STORAGE_KEY);
+      return;
+    }
+
+    const state: PersistedAuthState = {
+      accessToken,
       currentUser,
-      tasks,
-      auditLogs,
     };
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToPersist));
-  }, [currentUser, tasks, auditLogs]);
+
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }, [accessToken, currentUser]);
 
   /**
-   * Prepends a new audit event so the latest action appears first in the table.
+   * Fetches task list for the currently authenticated principal.
    */
-  const recordAudit = useCallback(
-    (action: string, details: string, actorName?: string) => {
-      const author = actorName ?? currentUser?.name ?? "system";
-
-      setAuditLogs((previousLogs) => {
-        const nextLog: AuditLog = {
-          id: previousLogs.length ? previousLogs[0].id + 1 : 1,
-          timestamp: new Date().toISOString(),
-          userName: author,
-          action,
-          details,
-        };
-        return [nextLog, ...previousLogs];
-      });
-    },
-    [currentUser?.name],
-  );
+  const refreshTasks = useCallback(async (token: string) => {
+    const rows = await getTasksApi(token);
+    setTasks(rows);
+  }, []);
 
   /**
-   * Authenticates using local dummy users only for this frontend-first phase.
+   * Fetches admin-only user directory used for assignment controls.
    */
-  const login = useCallback((email: string, password: string): LoginResult => {
-    const normalizedEmail = email.trim().toLowerCase();
-    const user = DUMMY_USERS.find(
-      (candidate) =>
-        candidate.email.toLowerCase() === normalizedEmail &&
-        candidate.password === password,
-    );
+  const refreshUsers = useCallback(async (token: string, role: User["role"]) => {
+    if (role !== "admin") {
+      setUsers([]);
+      return;
+    }
 
-    if (!user) {
+    const rows = await getUsersApi(token);
+    setUsers(rows);
+  }, []);
+
+  /**
+   * Fetches admin-only audit rows shown in the audit page.
+   */
+  const refreshAuditLogs = useCallback(async (token: string, role: User["role"]) => {
+    if (role !== "admin") {
+      setAuditLogs([]);
+      return;
+    }
+
+    const rows = await getAuditLogsApi(token);
+    setAuditLogs(rows);
+  }, []);
+
+  useEffect(() => {
+    if (!accessToken || !currentUser) {
+      return;
+    }
+
+    void (async () => {
+      try {
+        await Promise.all([
+          refreshTasks(accessToken),
+          refreshUsers(accessToken, currentUser.role),
+          refreshAuditLogs(accessToken, currentUser.role),
+        ]);
+      } catch {
+        setAccessToken(null);
+        setCurrentUser(null);
+        setTasks([]);
+        setUsers([]);
+        setAuditLogs([]);
+      }
+    })();
+  }, [accessToken, currentUser, refreshTasks, refreshUsers, refreshAuditLogs]);
+
+  /**
+   * Authenticates against backend and bootstraps authenticated app data.
+   */
+  const login = useCallback(async (email: string, password: string): Promise<LoginResult> => {
+    try {
+      const response = await loginApi(email, password);
+      setAccessToken(response.accessToken);
+      setCurrentUser(response.user);
+      return { success: true };
+    } catch {
       return {
         success: false,
         message: "Invalid email or password.",
       };
     }
-
-    setCurrentUser(user);
-    recordAudit("User Login", `User Login: \"${user.name}\"`, user.name);
-
-    return {
-      success: true,
-    };
-  }, [recordAudit]);
+  }, []);
 
   /**
-   * Clears active session while keeping task and audit demo state intact.
+   * Clears in-memory and persisted auth state for a clean logout flow.
    */
   const logout = useCallback(() => {
-    if (currentUser) {
-      recordAudit("User Logout", `User Logout: \"${currentUser.name}\"`);
-    }
-
+    setAccessToken(null);
     setCurrentUser(null);
-  }, [currentUser, recordAudit]);
+    setTasks([]);
+    setUsers([]);
+    setAuditLogs([]);
+  }, []);
 
   /**
-   * Updates task status and records a detailed status transition in audit logs.
+   * Updates task status through API, then refreshes dependent views.
    */
   const updateTaskStatus = useCallback(
-    (taskId: number, nextStatus: TaskStatus) => {
-      setTasks((previousTasks) => {
-        const sourceTask = previousTasks.find((item) => item.id === taskId);
-        if (!sourceTask || sourceTask.status === nextStatus) {
-          return previousTasks;
-        }
+    async (taskId: number, nextStatus: TaskStatus) => {
+      if (!accessToken || !currentUser) {
+        return;
+      }
 
-        const updatedTasks = previousTasks.map((item) => {
-          if (item.id !== taskId) {
-            return item;
-          }
-
-          return {
-            ...item,
-            status: nextStatus,
-            updatedAt: new Date().toISOString(),
-          };
-        });
-
-        recordAudit(
-          "Status Changed",
-          `Status Changed: \"${sourceTask.title}\" from \"${sourceTask.status}\" to \"${nextStatus}\"`,
-        );
-
-        return updatedTasks;
-      });
+      await updateTaskStatusApi(accessToken, taskId, nextStatus);
+      await refreshTasks(accessToken);
+      await refreshAuditLogs(accessToken, currentUser.role);
     },
-    [recordAudit],
+    [accessToken, currentUser, refreshTasks, refreshAuditLogs],
   );
 
   /**
-   * Creates a new task in-memory for admin dashboard demos.
+   * Creates a task via backend and then refreshes task/audit data.
    */
   const createTask = useCallback(
-    (payload: UpdateTaskPayload) => {
-      const assignee = DUMMY_USERS.find((user) => user.id === payload.assigneeId);
-      if (!assignee) {
+    async (payload: UpdateTaskPayload) => {
+      if (!accessToken || !currentUser) {
         return;
       }
 
-      setTasks((previousTasks) => {
-        const nextId = previousTasks.length
-          ? Math.max(...previousTasks.map((task) => task.id)) + 1
-          : 1;
-
-        const now = new Date().toISOString();
-        const nextTask: Task = {
-          id: nextId,
-          title: payload.title,
-          assigneeId: payload.assigneeId,
-          status: payload.status,
-          createdAt: now,
-          updatedAt: now,
-        };
-
-        recordAudit(
-          "Task Created",
-          `Task Created: \"${payload.title}\" assigned to \"${assignee.name}\"`,
-        );
-
-        return [nextTask, ...previousTasks];
-      });
+      await createTaskApi(accessToken, payload);
+      await refreshTasks(accessToken);
+      await refreshAuditLogs(accessToken, currentUser.role);
     },
-    [recordAudit],
+    [accessToken, currentUser, refreshTasks, refreshAuditLogs],
   );
 
   /**
-   * Edits an existing task and keeps audit history explicit for traceability.
+   * Edits task data via backend and then refreshes task/audit data.
    */
   const editTask = useCallback(
-    (taskId: number, payload: UpdateTaskPayload) => {
-      const assignee = DUMMY_USERS.find((user) => user.id === payload.assigneeId);
-      if (!assignee) {
+    async (taskId: number, payload: UpdateTaskPayload) => {
+      if (!accessToken || !currentUser) {
         return;
       }
 
-      setTasks((previousTasks) => {
-        const sourceTask = previousTasks.find((item) => item.id === taskId);
-        if (!sourceTask) {
-          return previousTasks;
-        }
-
-        const updatedTasks = previousTasks.map((item) => {
-          if (item.id !== taskId) {
-            return item;
-          }
-
-          return {
-            ...item,
-            title: payload.title,
-            assigneeId: payload.assigneeId,
-            status: payload.status,
-            updatedAt: new Date().toISOString(),
-          };
-        });
-
-        recordAudit(
-          "Task Edited",
-          `Task Edited: \"${sourceTask.title}\" updated to \"${payload.title}\" for \"${assignee.name}\"`,
-        );
-
-        return updatedTasks;
-      });
+      await editTaskApi(accessToken, taskId, payload);
+      await refreshTasks(accessToken);
+      await refreshAuditLogs(accessToken, currentUser.role);
     },
-    [recordAudit],
+    [accessToken, currentUser, refreshTasks, refreshAuditLogs],
   );
 
   /**
-   * Removes a task from the mock store and records the deletion event.
+   * Deletes task via backend and then refreshes task/audit data.
    */
   const deleteTask = useCallback(
-    (taskId: number) => {
-      setTasks((previousTasks) => {
-        const sourceTask = previousTasks.find((item) => item.id === taskId);
-        if (!sourceTask) {
-          return previousTasks;
-        }
+    async (taskId: number) => {
+      if (!accessToken || !currentUser) {
+        return;
+      }
 
-        recordAudit("Task Deleted", `Task Deleted: \"${sourceTask.title}\"`);
-        return previousTasks.filter((item) => item.id !== taskId);
-      });
+      await deleteTaskApi(accessToken, taskId);
+      await refreshTasks(accessToken);
+      await refreshAuditLogs(accessToken, currentUser.role);
     },
-    [recordAudit],
+    [accessToken, currentUser, refreshTasks, refreshAuditLogs],
   );
 
   const value = useMemo<AppStateContextValue>(
     () => ({
-      users: DUMMY_USERS,
+      users,
       tasks,
-      auditLogs: auditLogs.map((item) => ({
-        ...item,
-        timestamp: toTableDateTime(item.timestamp),
-      })),
+      auditLogs,
       currentUser,
       login,
       logout,
@@ -310,7 +267,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       editTask,
       deleteTask,
     }),
-    [tasks, auditLogs, currentUser, login, logout, updateTaskStatus, createTask, editTask, deleteTask],
+    [users, tasks, auditLogs, currentUser, login, logout, updateTaskStatus, createTask, editTask, deleteTask],
   );
 
   return <AppStateContext.Provider value={value}>{children}</AppStateContext.Provider>;
