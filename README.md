@@ -60,7 +60,7 @@ frontend/
 ### 1. Start the database and app stack with Docker
 
 ```bash
-docker compose up --build
+docker compose up
 ```
 
 This starts:
